@@ -223,7 +223,6 @@ button { font: inherit; cursor: pointer; }
     box-shadow: 0 0 0 1px rgba(25, 211, 255, .08), 0 0 50px rgba(25, 211, 255, .12), inset 0 0 60px rgba(0, 0, 0, .5);
 }
 /* turn the bright OSM tiles into a dark night-map */
-.leaflet-tile-pane { filter: invert(1) hue-rotate(188deg) brightness(.82) contrast(.92) saturate(.65); }
 .leaflet-container { background: #0a1424; font-family: var(--body); }
 .leaflet-control-zoom a { background: #101b30 !important; color: var(--cyan) !important; border-color: var(--border) !important; }
 .leaflet-control-attribution { background: rgba(6, 11, 22, .75) !important; color: var(--muted) !important; }
@@ -349,3 +348,21 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
     *, *::before, *::after { animation: none !important; transition: none !important; }
     .ecg path { stroke-dashoffset: 0; }
 }
+
+/* ---------- ROUTING + SIGNALS ---------- */
+.map-panel { backdrop-filter: none; }   /* keeps map text sharp */
+.green-dot { background: var(--green); box-shadow: 0 0 10px var(--green); }
+.pin { width: 20px; height: 20px; border-radius: 50%; border: 3px solid #fff; }
+.pin.amb { background: var(--red); box-shadow: 0 0 0 0 rgba(255,77,106,.8); animation: pinPing 1.3s infinite; }
+.pin.hos { background: #4d9dff; box-shadow: 0 0 18px #4d9dff; }
+@keyframes pinPing { 70% { box-shadow: 0 0 0 16px rgba(255,77,106,0); } 100% { box-shadow: 0 0 0 0 rgba(255,77,106,0); } }
+.sig { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #0a1424; transition: background .25s, box-shadow .25s; }
+.sig.red { background: var(--red); box-shadow: 0 0 12px var(--red); }
+.sig.green { background: var(--green); box-shadow: 0 0 16px var(--green); }
+.toggle { display: inline-flex; align-items: center; gap: 10px; font-size: 13px; font-weight: 700; color: var(--text); cursor: pointer; padding: 0 6px; }
+.toggle input { position: absolute; opacity: 0; }
+.slider { width: 42px; height: 24px; border-radius: 999px; background: rgba(255,255,255,.12); position: relative; transition: background .2s; }
+.slider::after { content: ""; position: absolute; top: 3px; left: 3px; width: 18px; height: 18px; border-radius: 50%; background: #fff; transition: transform .2s; }
+.toggle input:checked + .slider { background: var(--green); }
+.toggle input:checked + .slider::after { transform: translateX(18px); }
+.toggle input:focus-visible + .slider { outline: 2px solid var(--cyan); outline-offset: 3px; }
