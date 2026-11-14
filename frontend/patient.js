@@ -31,7 +31,7 @@
     }
     function sendAll() {
         const ids = [...need].filter(i => !status[i]); if (!ids.length) return;
-        ids.forEach(request); log('Hospital notified', `${window.destName} received ${ids.length} requirements`, 'blue-marker'); drawList();
+        ids.forEach(request); log('Hospital notified', `${window.destName} received ${ids.length} requirements for ${val('pName').trim() || 'patient'} (${val('pAge')} yrs, ${val('pBlood')}, allergy: ${val('pAllergy') || 'none'})`, 'blue-marker'); drawList();
     }
     $('checklist').onchange = e => {
         const id = e.target.dataset.id; e.target.checked ? need.add(id) : (need.delete(id), delete status[id]);
@@ -58,23 +58,47 @@
         Object.entries({ 'v-hr': w.hr, 'v-spo2': w.spo2, 'v-bp': w.bp, 'v-rr': w.rr, 'v-temp': w.temp }).forEach(([id, on]) => $(id).classList.toggle('warn', on));
         const n = Object.values(w).filter(Boolean).length;
         $('ptStatus').textContent = n >= 2 ? 'Critical' : n === 1 ? 'Unstable' : 'Stable';
-        $('v-st').className = 'vital ' + (n >= 2 ? 'warn' : n === 1 ? 'amber' : 'ok'); window.__hr = hr;
+        $('v-st').className = 'vital ' + (n >= 2 ? 'warn' : n === 1 ? 'amber' : 'ok'); window.__hr = hr; window.__rr = rr; $('tv-ecg').textContent = hr + ' bpm'; $('tv-pleth').textContent = sp + ' %'; $('tv-abp').textContent = sys + '/' + dia; $('tv-resp').textContent = rr + ' /min';
     }
     setInterval(vitals, 1000);
 
-    // ---------- ECG ----------
-    const cv = $('ecg'), cx = cv.getContext('2d'); let W = 0, H = 120, trace = [], t0 = performance.now(), phase = 0;
-    function size() { const d = window.devicePixelRatio || 1; W = cv.clientWidth; cv.width = W * d; cv.height = H * d; cx.setTransform(d, 0, 0, d, 0, 0); }
+    // ---------- LIVE TRACES: ECG, SpO2 pulse wave, arterial BP, respiration ----------
     const g = (p, c, w, a) => a * Math.exp(-(((p - c) / w) ** 2));
-    const wave = p => g(p, .18, .04, .12) - g(p, .37, .012, .15) + g(p, .40, .012, 1) - g(p, .43, .012, .25) + g(p, .65, .06, .22);
+    const hrRate = () => window.__hr || 82;
+    const TR = [
+        { id: 'ecg',   color: '#2cf5b0', rate: hrRate, base: .72, amp: .55, f: p => g(p, .18, .04, .12) - g(p, .37, .012, .15) + g(p, .40, .012, 1) - g(p, .43, .012, .25) + g(p, .65, .06, .22) },
+        { id: 'pleth', color: '#19d3ff', rate: hrRate, base: .88, amp: .62, f: p => g(p, .25, .11, 1) + g(p, .55, .08, .3) },
+        { id: 'abp',   color: '#ff6f91', rate: hrRate, base: .88, amp: .60, f: p => g(p, .20, .06, 1) + g(p, .48, .07, .38) },
+        { id: 'resp',  color: '#ffc464', rate: () => window.__rr || 16, base: .5, amp: .32, f: p => Math.sin(p * 2 * Math.PI) }
+    ].map(t => ({ ...t, cv: $(t.id), phase: Math.random(), data: [] }));
+    let W = 0, H = 70, t0 = performance.now();
+    function size() {
+        const d = window.devicePixelRatio || 1;
+        TR.forEach(t => { W = t.cv.clientWidth; t.cv.width = W * d; t.cv.height = H * d; t.cx = t.cv.getContext('2d'); t.cx.setTransform(d, 0, 0, d, 0, 0); });
+    }
     function draw(now) {
         const dt = Math.min((now - t0) / 1000, .1); t0 = now;
-        phase = (phase + dt * (window.__hr || 82) / 60) % 1; trace.push(wave(phase));
-        const n = Math.ceil(W / 2); if (trace.length > n) trace.splice(0, trace.length - n);
-        cx.clearRect(0, 0, W, H); cx.lineWidth = 2; cx.lineJoin = 'round'; cx.strokeStyle = '#2cf5b0'; cx.shadowColor = '#2cf5b0'; cx.shadowBlur = 8; cx.beginPath();
-        trace.forEach((v, i) => { const x = W - (trace.length - i) * 2, y = H * .7 - v * H * .55; i ? cx.lineTo(x, y) : cx.moveTo(x, y); });
-        cx.stroke(); requestAnimationFrame(draw);
+        TR.forEach(t => {
+            t.phase = (t.phase + dt * t.rate() / 60) % 1; t.data.push(t.f(t.phase));
+            const n = Math.ceil(W / 2); if (t.data.length > n) t.data.splice(0, t.data.length - n);
+            const c = t.cx; c.clearRect(0, 0, W, H); c.lineWidth = 2; c.lineJoin = 'round';
+            c.strokeStyle = t.color; c.shadowColor = t.color; c.shadowBlur = 7; c.beginPath();
+            t.data.forEach((v, i) => { const x = W - (t.data.length - i) * 2, y = H * t.base - v * H * t.amp; i ? c.lineTo(x, y) : c.moveTo(x, y); });
+            c.stroke();
+        });
+        requestAnimationFrame(draw);
     }
     size(); addEventListener('resize', size); requestAnimationFrame(draw);
-    vitals(); drawList();
+
+    // ---------- patient details ----------
+    const val = id => $(id).value;
+    function details() {
+        const n = val('pName').trim() || 'Unknown patient', m = val('pHt') / 100, w = val('pWt');
+        const bmi = m && w ? (w / (m * m)).toFixed(1) : '—';
+        $('ptTitle').textContent = n;
+        $('ptSub').textContent = `${val('pAge') || '—'} yrs · ${val('pGender')} · ${w || '—'} kg · ${val('pHt') || '—'} cm · BMI ${bmi} · ${val('pBlood')}`;
+        $('ptAvatar').textContent = n.split(/\s+/).map(x => x[0]).join('').slice(0, 2).toUpperCase();
+    }
+    document.querySelector('.pt-fields').addEventListener('input', details);
+    details(); vitals(); drawList();
 })();
