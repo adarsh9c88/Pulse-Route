@@ -90,6 +90,11 @@
                     <div id="map"></div>
                     <button class="map-fs" id="fsBtn" type="button">⛶ Full screen</button>
                     <div class="map-hud"><span id="hudStatus">Standby</span><b id="hudEta">—</b><button type="button" id="hudStart">▶ Start</button></div>
+                    <div class="map-tools">
+                        <button type="button" id="locBtn">⌖ Use my location</button>
+                        <button type="button" id="pickBtn">✥ Set start</button>
+                        <small id="startInfo">Start: default point</small>
+                    </div>
                 </div>
 
                 <div class="map-legend">
@@ -141,17 +146,37 @@
             </div>
             <div class="patient-grid">
                 <div class="pt-left">
-                    <div class="patient-id">
-                        <div class="avatar">P1</div>
-                        <div><strong>Patient #PR-001</strong><small>Simulated patient data</small></div>
-                        <select id="condition" aria-label="Emergency type">
-                            <option value="cardiac">Cardiac emergency</option>
-                            <option value="trauma">Road accident (trauma)</option>
-                            <option value="stroke">Stroke</option>
-                            <option value="breath">Breathing difficulty</option>
-                        </select>
+                    <div class="pt-details">
+                        <div class="pt-head">
+                            <div class="avatar" id="ptAvatar">AK</div>
+                            <div class="pt-title"><strong id="ptTitle">Amit Kumar</strong><small id="ptSub">54 yrs</small></div>
+                            <span class="tag-sim">Simulated</span>
+                        </div>
+                        <div class="pt-fields">
+                            <label>Name<input id="pName" value="Amit Kumar" maxlength="40"></label>
+                            <label>Age<input id="pAge" type="number" min="0" max="120" value="54"></label>
+                            <label>Gender<select id="pGender"><option>Male</option><option>Female</option><option>Other</option></select></label>
+                            <label>Blood group<select id="pBlood"><option>A+</option><option>A-</option><option selected>B+</option><option>B-</option><option>AB+</option><option>AB-</option><option>O+</option><option>O-</option></select></label>
+                            <label>Weight (kg)<input id="pWt" type="number" min="1" max="300" value="72"></label>
+                            <label>Height (cm)<input id="pHt" type="number" min="30" max="250" value="170"></label>
+                            <label>Known allergies<input id="pAllergy" value="Penicillin" maxlength="40"></label>
+                            <label>Emergency contact<input id="pContact" placeholder="+91 XXXXX XXXXX" maxlength="20"></label>
+                            <label class="span2">Emergency type
+                                <select id="condition" aria-label="Emergency type">
+                                    <option value="cardiac">Cardiac emergency</option>
+                                    <option value="trauma">Road accident (trauma)</option>
+                                    <option value="stroke">Stroke</option>
+                                    <option value="breath">Breathing difficulty</option>
+                                </select>
+                            </label>
+                        </div>
                     </div>
-                    <canvas id="ecg" aria-label="Live ECG trace"></canvas>
+                    <div class="traces">
+                        <div class="trace"><span class="trace-label">ECG · Lead II</span><b class="trace-val" id="tv-ecg"></b><canvas id="ecg"></canvas></div>
+                        <div class="trace"><span class="trace-label">SpO₂ pulse wave</span><b class="trace-val" id="tv-pleth"></b><canvas id="pleth"></canvas></div>
+                        <div class="trace"><span class="trace-label">Arterial blood pressure</span><b class="trace-val" id="tv-abp"></b><canvas id="abp"></canvas></div>
+                        <div class="trace"><span class="trace-label">Respiration</span><b class="trace-val" id="tv-resp"></b><canvas id="resp"></canvas></div>
+                    </div>
                     <div class="vitals-grid">
                         <div class="vital" id="v-hr"><span>Heart rate</span><h2 id="heartRate">82 <small>BPM</small></h2></div>
                         <div class="vital" id="v-spo2"><span>Blood oxygen</span><h2 id="spo2">98 <small>%</small></h2></div>
