@@ -1,6 +1,6 @@
 // PulseRoute: Google Maps + shortest-road routing + traffic-signal green corridor (simulation)
 const GOOGLE_API_KEY = "AIzaSyACJ7r-lMb9TRqwuUq9__BUjNoSM0ZfZPk";
-const START = [30.9045, 75.8560];      // ambulance start (edit freely)
+let START = [30.9045, 75.8560];      // ambulance start (edit freely)
 let   HOSPITAL = [30.8895, 75.8425];   // click on the map to move the hospital
 const GREEN_RANGE = 200;               // metres before a signal it turns green
 const RED_AFTER   = 25;                // metres after passing it turns red again
@@ -35,7 +35,7 @@ function dist(a, b) {
 
 function log(title, sub, cls = '') {
     const list = $('activityList');
-    list.insertAdjacentHTML('afterbegin', `<div class="activity-item"><span class="activity-marker ${cls}"></span><div><strong>${title}</strong><small>${sub}</small></div></div>`);
+    list.insertAdjacentHTML('afterbegin', `<div class="activity-item"><span class="activity-marker ${cls}"></span><div><strong>${esc(title)}</strong><small>${esc(sub)}</small></div></div>`);
     while (list.children.length > 7) list.lastChild.remove();
 }
 
@@ -153,8 +153,9 @@ window.initMap = function () {
     amb  = new google.maps.Marker({ position: ll(START), map, icon: dot('#ff4d6a', 9), zIndex: 1000 });
     hosp = new google.maps.Marker({ position: ll(HOSPITAL), map, icon: dot('#4d9dff', 9) });
     map.addListener('click', e => {
+        if (window.pickingStart) { setStart(e.latLng.lat(), e.latLng.lng(), 'Picked on map'); return; }
         if (running) return;
-        HOSPITAL = [e.latLng.lat(), e.latLng.lng()]; hosp.setPosition(e.latLng); clearRoute();
+        HOSPITAL = [e.latLng.lat(), e.latLng.lng()]; hosp.setPosition(e.latLng); hosp.setMap(map); clearRoute();
         window.destName = 'Custom location'; $('destName').textContent = 'Custom location'; document.dispatchEvent(new Event('pr:destchange'));
         log('Hospital moved', 'Click Start to plan a new shortest route');
     });
