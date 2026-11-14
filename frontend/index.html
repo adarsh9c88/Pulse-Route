@@ -86,7 +86,11 @@
                     <span class="map-status">● MAP ACTIVE</span>
                 </div>
 
-                <div id="map"></div>
+                <div class="map-wrap" id="mapWrap">
+                    <div id="map"></div>
+                    <button class="map-fs" id="fsBtn" type="button">⛶ Full screen</button>
+                    <div class="map-hud"><span id="hudStatus">Standby</span><b id="hudEta">—</b><button type="button" id="hudStart">▶ Start</button></div>
+                </div>
 
                 <div class="map-legend">
                     <span><i class="legend-dot red-dot"></i> Ambulance</span>
@@ -106,85 +110,68 @@
 
             <div class="right-column">
 
-                <div class="panel emergency-panel">
+                <div class="panel hospitals-panel" id="hospital">
                     <div class="panel-heading">
-                        <div>
-                            <h3>Emergency Details</h3>
-                            <p>Current simulated incident</p>
-                        </div>
-                        <span class="priority">HIGH PRIORITY</span>
+                        <div><h3>Nearby Hospitals</h3><p>Pick one to set the destination and dispatch</p></div>
+                        <span class="map-status" id="hospCount">Searching...</span>
                     </div>
-
-                    <div class="incident-id">Incident #PR-001</div>
-
-                    <div class="detail-row"><span>Ambulance ID</span><strong>AMB-04</strong></div>
-                    <div class="detail-row"><span>Destination</span><strong>City Hospital</strong></div>
-                    <div class="detail-row"><span>Estimated Arrival</span><strong id="eta">08 minutes</strong></div>
-                    <div class="detail-row"><span>Incident Status</span><strong class="status-text" id="incidentStatus">En Route</strong></div>
+                    <div class="hosp-list" id="hospList"></div>
                 </div>
 
-                <div class="panel patient-panel" id="patient">
+                <div class="panel emergency-panel">
                     <div class="panel-heading">
-                        <div>
-                            <h3>Patient Monitoring</h3>
-                            <p>Simulated patient telemetry</p>
-                        </div>
-                        <span class="monitor-live">● LIVE</span>
+                        <div><h3>Emergency Details</h3><p>Current simulated incident</p></div>
+                        <span class="priority">HIGH PRIORITY</span>
                     </div>
-
-                    <div class="patient-metrics">
-                        <div class="metric">
-                            <span>Heart Rate</span>
-                            <h2 id="heartRate">82 <small>BPM</small></h2>
-                            <svg class="ecg" viewBox="0 0 200 34" preserveAspectRatio="none" aria-hidden="true">
-                                <path d="M0 18 H40 L46 18 L52 6 L58 30 L64 12 L68 18 H110 L116 18 L122 4 L128 31 L134 12 L138 18 H200"/>
-                            </svg>
-                            <p>Simulated reading</p>
-                        </div>
-
-                        <div class="metric">
-                            <span>Blood Oxygen</span>
-                            <h2 id="spo2">98 <small>%</small></h2>
-                            <svg class="ecg" viewBox="0 0 200 34" preserveAspectRatio="none" aria-hidden="true">
-                                <path d="M0 22 C25 6 45 6 70 22 S115 38 140 22 S180 8 200 18"/>
-                            </svg>
-                            <p>Simulated reading</p>
-                        </div>
-                    </div>
-
-                    <div class="patient-note">Patient information is simulated for demonstration.</div>
+                    <div class="incident-id">Incident #PR-001</div>
+                    <div class="detail-row"><span>Ambulance ID</span><strong>AMB-04</strong></div>
+                    <div class="detail-row"><span>Destination</span><strong id="destName">Select a hospital</strong></div>
+                    <div class="detail-row"><span>Shortest route</span><strong id="routeKm">—</strong></div>
+                    <div class="detail-row"><span>Estimated Arrival</span><strong id="eta">—</strong></div>
+                    <div class="detail-row"><span>Incident Status</span><strong class="status-text" id="incidentStatus">Standby</strong></div>
                 </div>
 
             </div>
         </section>
 
-        <section class="bottom-grid">
-
-            <div class="panel" id="hospital">
-                <div class="panel-heading">
-                    <div>
-                        <h3>Hospital Coordination</h3>
-                        <p>Connected demonstration facilities</p>
+        <section class="panel patient-big" id="patient">
+            <div class="panel-heading">
+                <div><h3>Patient Health and Hospital Readiness</h3><p>Live monitoring, with an emergency checklist sent to the destination hospital</p></div>
+                <span class="monitor-live">● LIVE</span>
+            </div>
+            <div class="patient-grid">
+                <div class="pt-left">
+                    <div class="patient-id">
+                        <div class="avatar">P1</div>
+                        <div><strong>Patient #PR-001</strong><small>Simulated patient data</small></div>
+                        <select id="condition" aria-label="Emergency type">
+                            <option value="cardiac">Cardiac emergency</option>
+                            <option value="trauma">Road accident (trauma)</option>
+                            <option value="stroke">Stroke</option>
+                            <option value="breath">Breathing difficulty</option>
+                        </select>
                     </div>
-                    <span class="map-status">06 CONNECTED</span>
+                    <canvas id="ecg" aria-label="Live ECG trace"></canvas>
+                    <div class="vitals-grid">
+                        <div class="vital" id="v-hr"><span>Heart rate</span><h2 id="heartRate">82 <small>BPM</small></h2></div>
+                        <div class="vital" id="v-spo2"><span>Blood oxygen</span><h2 id="spo2">98 <small>%</small></h2></div>
+                        <div class="vital" id="v-bp"><span>Blood pressure</span><h2 id="bp">120/80 <small>mmHg</small></h2></div>
+                        <div class="vital" id="v-rr"><span>Breathing rate</span><h2 id="resp">16 <small>/min</small></h2></div>
+                        <div class="vital" id="v-temp"><span>Temperature</span><h2 id="temp">36.8 <small>°C</small></h2></div>
+                        <div class="vital ok" id="v-st"><span>Patient condition</span><h2 id="ptStatus">Stable</h2></div>
+                    </div>
                 </div>
-
-                <div class="hospital-row">
-                    <div class="hospital-icon">✚</div>
-                    <div class="hospital-info"><strong>City Hospital</strong><small>Emergency department</small></div>
-                    <span class="available">Available</span>
-                </div>
-                <div class="hospital-row">
-                    <div class="hospital-icon">✚</div>
-                    <div class="hospital-info"><strong>Central Medical Centre</strong><small>Emergency department</small></div>
-                    <span class="available">Available</span>
-                </div>
-                <div class="hospital-row">
-                    <div class="hospital-icon">✚</div>
-                    <div class="hospital-info"><strong>Metro Care Hospital</strong><small>Emergency department</small></div>
-                    <span class="available">Available</span>
+                <div class="pt-right">
+                    <h4>What the hospital must prepare</h4>
+                    <div class="ready"><div class="ready-bar"><i id="readyBar"></i></div><small id="readyText">Checklist not sent yet</small></div>
+                    <div id="checklist" class="checklist"></div>
+                    <button class="primary-btn" id="sendBtn" type="button">Send checklist to hospital</button>
                 </div>
             </div>
+            <div class="patient-note">Patient information is simulated for demonstration.</div>
+        </section>
+
+        <section class="bottom-grid">
 
             <div class="panel activity-panel">
                 <div class="panel-heading">
@@ -201,7 +188,7 @@
                     </div>
                     <div class="activity-item">
                         <span class="activity-marker blue-marker"></span>
-                        <div><strong>Hospital notified</strong><small>City Hospital received an alert</small></div>
+                        <div><strong>Hospital notified</strong><small>The selected hospital received an alert</small></div>
                     </div>
                     <div class="activity-item">
                         <span class="activity-marker green-marker"></span>
@@ -222,6 +209,8 @@
 </div>
 
 <script src="script.js"></script>
+<script src="hospitals.js"></script>
+<script src="patient.js"></script>
 <script src="enhance.js"></script>
 </body>
 </html>
