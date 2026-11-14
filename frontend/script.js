@@ -5,7 +5,7 @@
 
 // Paste your restricted Google Maps key here.
 // Leave empty to use the free OpenStreetMap fallback.
-const GOOGLE_MAPS_API_KEY = "";
+const GOOGLE_MAPS_API_KEY = "AIzaSyACJ7r-lMb9TRqwuUq9__BUjNoSM0ZfZPk";
 
 const API_BASE = "http://127.0.0.1:8000";
 
