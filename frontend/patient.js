@@ -58,37 +58,76 @@
         Object.entries({ 'v-hr': w.hr, 'v-spo2': w.spo2, 'v-bp': w.bp, 'v-rr': w.rr, 'v-temp': w.temp }).forEach(([id, on]) => $(id).classList.toggle('warn', on));
         const n = Object.values(w).filter(Boolean).length;
         $('ptStatus').textContent = n >= 2 ? 'Critical' : n === 1 ? 'Unstable' : 'Stable';
-        $('v-st').className = 'vital ' + (n >= 2 ? 'warn' : n === 1 ? 'amber' : 'ok'); window.__hr = hr; window.__rr = rr; $('tv-ecg').textContent = hr + ' bpm'; $('tv-pleth').textContent = sp + ' %'; $('tv-abp').textContent = sys + '/' + dia; $('tv-resp').textContent = rr + ' /min';
+        $('v-st').className = 'vital ' + (n >= 2 ? 'warn' : n === 1 ? 'amber' : 'ok'); window.__hr = hr; window.__rr = rr; window.__sys = sys; window.__dia = dia; $('tv-ecg').textContent = hr + ' bpm'; $('tv-pleth').textContent = sp + ' %'; $('tv-abp').textContent = sys + '/' + dia; $('tv-resp').textContent = rr + ' /min';
     }
     setInterval(vitals, 1000);
 
-    // ---------- LIVE TRACES: ECG, SpO2 pulse wave, arterial BP, respiration ----------
+    // ---------- LIVE TRACES: every beat is different (rate variability, ectopic beats, breathing effect) ----------
     const g = (p, c, w, a) => a * Math.exp(-(((p - c) / w) ** 2));
-    const hrRate = () => window.__hr || 82;
+    const PROF = {                                   // how each emergency changes the signals
+        cardiac: { hrv: .04, pvc: .14, af: false, pulse: 1,   depth: 1 },
+        trauma:  { hrv: .03, pvc: .02, af: false, pulse: .55, depth: .8 },
+        stroke:  { hrv: .24, pvc: .03, af: true,  pulse: 1,   depth: 1 },
+        breath:  { hrv: .05, pvc: .04, af: false, pulse: .85, depth: .55 }
+    };
+    let beats = [], comp = false, clock = 0, accT = 0, respPh = 0, lastT = performance.now();
+    function addBeat() {
+        const P = PROF[sel.value], base = 60 / (window.__hr || 82), prev = beats[beats.length - 1];
+        const pvc = !comp && Math.random() < P.pvc;
+        let rr = base * (1 + rnd(-P.hrv, P.hrv));
+        if (pvc) { rr *= .62; comp = true; } else if (comp) { rr *= 1.38; comp = false; }
+        beats.push({ t0: prev ? prev.t0 + prev.rr : clock - 1, rr, pvc, amp: (pvc ? 1.15 : 1) * (1 + rnd(-.07, .07)) });
+        if (beats.length > 8) beats.shift();
+    }
+    function beatAt(s) {
+        while (!beats.length || beats[beats.length - 1].t0 + beats[beats.length - 1].rr <= s + .05) addBeat();
+        for (let i = beats.length - 1; i >= 0; i--) if (beats[i].t0 <= s) return beats[i];
+        return beats[0];
+    }
     const TR = [
-        { id: 'ecg',   color: '#2cf5b0', rate: hrRate, base: .72, amp: .55, f: p => g(p, .18, .04, .12) - g(p, .37, .012, .15) + g(p, .40, .012, 1) - g(p, .43, .012, .25) + g(p, .65, .06, .22) },
-        { id: 'pleth', color: '#19d3ff', rate: hrRate, base: .88, amp: .62, f: p => g(p, .25, .11, 1) + g(p, .55, .08, .3) },
-        { id: 'abp',   color: '#ff6f91', rate: hrRate, base: .88, amp: .60, f: p => g(p, .20, .06, 1) + g(p, .48, .07, .38) },
-        { id: 'resp',  color: '#ffc464', rate: () => window.__rr || 16, base: .5, amp: .32, f: p => Math.sin(p * 2 * Math.PI) }
-    ].map(t => ({ ...t, cv: $(t.id), phase: Math.random(), data: [] }));
-    let W = 0, H = 70, t0 = performance.now();
+        { id: 'ecg', color: '#2cf5b0', delay: 0, base: .72, amp: .55, f: (b, p, P) => {
+            let v = b.pvc ? g(p, .32, .085, 1.1) - g(p, .60, .10, .45)
+                          : (P.af ? 0 : g(p, .18, .04, .12)) - g(p, .37, .012, .15) + g(p, .40, .012, 1) - g(p, .43, .012, .25) + g(p, .65, .06, .22);
+            if (sel.value === 'cardiac' && !b.pvc) v += g(p, .52, .07, .14);              // ST elevation
+            return v * b.amp + .04 * Math.sin(respPh) + (P.af ? .04 * Math.sin(clock * 55) : 0) + rnd(-.012, .012);
+        } },
+        { id: 'pleth', color: '#19d3ff', delay: .20, base: .88, amp: .62, f: (b, p, P) =>
+            (g(p, .28, .12, 1) + g(p, .58, .09, .28)) * b.amp * P.pulse * (b.pvc ? .5 : 1) * (1 + .12 * Math.sin(respPh)) + rnd(-.008, .008) },
+        { id: 'abp', color: '#ff6f91', delay: .12, base: .88, amp: .58, f: (b, p, P) =>
+            (g(p, .22, .06, 1) + g(p, .50, .07, .35)) * b.amp * P.pulse * (b.pvc ? .55 : 1) *
+            Math.min(1.3, Math.max(.5, ((window.__sys || 120) - (window.__dia || 80)) / 55)) + .03 * Math.sin(respPh) },
+        { id: 'resp', color: '#ffc464', delay: 0, base: .5, amp: .3, f: (b, p, P) =>
+            P.depth * (Math.sin(respPh) + .25 * Math.sin(2 * respPh + 1)) * (.9 + .2 * Math.sin(clock * .35)) }
+    ].map(t => ({ ...t, cv: $(t.id), data: [], h: 100 }));
+    let W = 0;
     function size() {
         const d = window.devicePixelRatio || 1;
-        TR.forEach(t => { W = t.cv.clientWidth; t.cv.width = W * d; t.cv.height = H * d; t.cx = t.cv.getContext('2d'); t.cx.setTransform(d, 0, 0, d, 0, 0); });
+        TR.forEach(t => {
+            W = t.cv.clientWidth; t.h = t.cv.clientHeight || 100;
+            t.cv.width = W * d; t.cv.height = t.h * d; t.cx = t.cv.getContext('2d'); t.cx.setTransform(d, 0, 0, d, 0, 0);
+        });
     }
     function draw(now) {
-        const dt = Math.min((now - t0) / 1000, .1); t0 = now;
+        accT += Math.min((now - lastT) / 1000, .1); lastT = now;
+        const P = PROF[sel.value], step = 1 / 60;
+        while (accT >= step) {                                   // fixed scroll speed on any screen
+            accT -= step; clock += step; respPh += 2 * Math.PI * (window.__rr || 16) / 60 * step;
+            TR.forEach(t => {
+                const s = clock - t.delay, b = beatAt(s), p = Math.min(1, Math.max(0, (s - b.t0) / b.rr));
+                t.data.push(t.f(b, p, P)); if (t.data.length > Math.ceil(W / 2)) t.data.shift();
+            });
+        }
         TR.forEach(t => {
-            t.phase = (t.phase + dt * t.rate() / 60) % 1; t.data.push(t.f(t.phase));
-            const n = Math.ceil(W / 2); if (t.data.length > n) t.data.splice(0, t.data.length - n);
-            const c = t.cx; c.clearRect(0, 0, W, H); c.lineWidth = 2; c.lineJoin = 'round';
+            const c = t.cx, h = t.h; c.clearRect(0, 0, W, h); c.lineWidth = 2; c.lineJoin = 'round';
             c.strokeStyle = t.color; c.shadowColor = t.color; c.shadowBlur = 7; c.beginPath();
-            t.data.forEach((v, i) => { const x = W - (t.data.length - i) * 2, y = H * t.base - v * H * t.amp; i ? c.lineTo(x, y) : c.moveTo(x, y); });
+            t.data.forEach((v, i) => { const x = W - (t.data.length - i) * 2, y = h * t.base - v * h * t.amp; i ? c.lineTo(x, y) : c.moveTo(x, y); });
             c.stroke();
         });
         requestAnimationFrame(draw);
     }
-    size(); addEventListener('resize', size); requestAnimationFrame(draw);
+    size(); addEventListener('resize', size);
+    if (window.ResizeObserver) new ResizeObserver(size).observe(document.querySelector('.traces'));
+    requestAnimationFrame(draw);
 
     // ---------- patient details ----------
     const val = id => $(id).value;
