@@ -93,12 +93,16 @@
                 <div class="map-legend">
                     <span><i class="legend-dot red-dot"></i> Ambulance</span>
                     <span><i class="legend-dot blue-dot"></i> Hospital</span>
-                    <span><i class="legend-line"></i> Demo route</span>
+                    <span><i class="legend-line"></i> Shortest route</span>
+                    <span><i class="legend-dot red-dot"></i> Red signal</span>
+                    <span><i class="legend-dot green-dot"></i> Green signal</span>
+                    <span id="signalInfo">Signals: -</span>
                 </div>
 
                 <div class="map-buttons">
                     <button class="primary-btn" id="startDemo">▶ Start Emergency Demo</button>
                     <button class="secondary-btn" id="resetDemo">↻ Reset</button>
+                    <label class="toggle"><input type="checkbox" id="autoSignals" checked><span class="slider"></span> Auto green corridor</label>
                 </div>
             </div>
 
