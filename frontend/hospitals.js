@@ -48,7 +48,7 @@ $('hospList').onclick = e => { const b = e.target.closest('.hosp-item'); if (b) 
 function pick(h) {
     if ($('incidentStatus').textContent === 'Planning route...') return;
     pickedName = h.name; window.destName = h.name; HOSPITAL = [h.lat, h.lng];
-    hosp.setPosition({ lat: h.lat, lng: h.lng }); $('destName').textContent = h.name; render();
+    hosp.setMap(map); hosp.setPosition({ lat: h.lat, lng: h.lng }); $('destName').textContent = h.name; render();
     log('Destination selected', `${h.name} (${(h.d / 1000).toFixed(1)} km away)`, 'blue-marker');
     start();   // plan the shortest route and send the ambulance
 }
@@ -67,3 +67,27 @@ setInterval(() => {
     else if (s === 'Arrived') document.dispatchEvent(new Event('pr:arrived'));
     else if (s === 'Standby' || s === 'Planning route...') document.dispatchEvent(new Event('pr:reset'));
 }, 300);
+
+// ---- start location: use GPS or pick on the map ----
+window.pickingStart = false;
+function pickMode(on) {
+    window.pickingStart = on; $('pickBtn').classList.toggle('on', on);
+    $('pickBtn').textContent = on ? 'Click the map...' : '✥ Set start';
+    if (map) map.setOptions({ draggableCursor: on ? 'crosshair' : null });
+}
+function setStart(lat, lng, how) {
+    if ($('incidentStatus').textContent === 'Planning route...') return;
+    START = [lat, lng]; pickMode(false); clearRoute(); hosp.setMap(null);
+    pickedName = null; $('destName').textContent = 'Select a hospital';
+    $('startInfo').textContent = 'Start: ' + how;
+    log('Start location set', how, 'blue-marker'); loadHospitals();
+}
+$('pickBtn').onclick = () => pickMode(!window.pickingStart);
+$('locBtn').onclick = () => {
+    if (!navigator.geolocation) { log('Location unavailable', 'This browser does not support location'); return; }
+    $('startInfo').textContent = 'Finding your location...';
+    navigator.geolocation.getCurrentPosition(
+        p => { const a = p.coords.accuracy; setStart(p.coords.latitude, p.coords.longitude, 'My location (' + (a > 1000 ? '±' + (a / 1000).toFixed(1) + ' km, approximate' : '±' + Math.round(a) + ' m') + ')'); },
+        err => { $('startInfo').textContent = 'Location blocked'; log('Location unavailable', err.code === 1 ? 'Allow location access in the browser, or use Set start' : 'Could not get your location, try Set start'); },
+        { enableHighAccuracy: true, timeout: 10000, maximumAge: 30000 });
+};
