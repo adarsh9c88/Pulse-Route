@@ -451,3 +451,18 @@ footer { display: flex; justify-content: space-between; gap: 12px; flex-wrap: wr
 #tv-ecg { color: #2cf5b0; } #tv-pleth { color: #19d3ff; } #tv-abp { color: #ff6f91; } #tv-resp { color: #ffc464; }
 
 @media (max-width: 1400px) { .pt-fields { grid-template-columns: repeat(2, 1fr); } }
+
+/* ---------- PATIENT SECTION: balanced two-column layout ---------- */
+.patient-grid { align-items: stretch; }
+.pt-left, .pt-right { display: flex; flex-direction: column; min-width: 0; }
+.pt-details { flex-shrink: 0; }
+.traces { flex: 1; margin-bottom: 0; }
+.trace { flex: 1; min-height: 105px;
+    background: linear-gradient(rgba(44, 245, 176, .06) 1px, transparent 1px) 0 0 / 100% 24px,
+                linear-gradient(90deg, rgba(44, 245, 176, .06) 1px, transparent 1px) 0 0 / 24px 100%, rgba(0, 0, 0, .32); }
+.trace canvas { position: absolute; inset: 0; width: 100%; height: 100%; }
+.pt-right .vitals-grid { margin-bottom: 18px; }
+.pt-right .vital h2 { font-size: 22px; }
+.checklist { flex: 1; }
+.chk { flex: 1 1 auto; min-height: 44px; }
+.pt-right .primary-btn { align-self: flex-start; }
