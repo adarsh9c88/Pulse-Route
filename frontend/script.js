@@ -1,416 +1,169 @@
+// PulseRoute: Google Maps + shortest-road routing + traffic-signal green corridor (simulation)
+const GOOGLE_API_KEY = "AIzaSyACJ7r-lMb9TRqwuUq9__BUjNoSM0ZfZPk";
+const START = [30.9045, 75.8560];      // ambulance start (edit freely)
+let   HOSPITAL = [30.8895, 75.8425];   // click on the map to move the hospital
+const GREEN_RANGE = 200;               // metres before a signal it turns green
+const RED_AFTER   = 25;                // metres after passing it turns red again
+const $ = id => document.getElementById(id);
 
-// ======================================
-// PULSEROUTE - MAIN JAVASCRIPT
-// ======================================
+// load Google Maps with the key
+const gs = document.createElement('script');
+gs.src = `https://maps.googleapis.com/maps/api/js?key=${GOOGLE_API_KEY}&callback=initMap&v=weekly`;
+gs.async = true; gs.onerror = () => { $('incidentStatus').textContent = 'Google Maps failed to load'; };
+document.head.appendChild(gs);
 
-// Paste your restricted Google Maps key here.
-// Leave empty to use the free OpenStreetMap fallback.
-const GOOGLE_MAPS_API_KEY = "AIzaSyACJ7r-lMb9TRqwuUq9__BUjNoSM0ZfZPk";
-
-const API_BASE = "http://127.0.0.1:8000";
-
-// Demo map coordinates: Ludhiana
-const hospitalLocation = { lat: 30.9010, lng: 75.8573 };
-
-const routePoints = [
-    { lat: 30.8950, lng: 75.8450 },
-    { lat: 30.8970, lng: 75.8480 },
-    { lat: 30.8990, lng: 75.8510 },
-    { lat: 30.9000, lng: 75.8540 },
-    { lat: 30.9010, lng: 75.8573 }
+const DARK = [
+    { elementType: 'geometry', stylers: [{ color: '#0f1b2f' }] },
+    { elementType: 'labels.text.fill', stylers: [{ color: '#9db4d3' }] },
+    { elementType: 'labels.text.stroke', stylers: [{ color: '#0a1424' }] },
+    { featureType: 'road', elementType: 'geometry', stylers: [{ color: '#1e3250' }] },
+    { featureType: 'road.highway', elementType: 'geometry', stylers: [{ color: '#2b4a73' }] },
+    { featureType: 'water', elementType: 'geometry', stylers: [{ color: '#08111f' }] },
+    { featureType: 'poi', stylers: [{ visibility: 'off' }] },
+    { featureType: 'transit', stylers: [{ visibility: 'off' }] }
 ];
 
-let map;
-let ambulanceMarker;
-let routeLine;
-let ambulancePosition = 0;
-let simulationTimer = null;
-let incidentActive = false;
-let useGoogleMaps = false;
+let map, amb, hosp, line = null, pts = [], cum = [], total = 0, signals = [], raf = null, running = false;
+const ll = p => ({ lat: p[0], lng: p[1] });
+const dot = (fill, scale, stroke = '#fff', w = 3) => ({ path: google.maps.SymbolPath.CIRCLE, scale, fillColor: fill, fillOpacity: 1, strokeColor: stroke, strokeWeight: w });
+const sigIcon = s => dot(s === 'red' ? '#ff4d6a' : '#2cf5b0', 7, '#0a1424', 2);
+function dist(a, b) {
+    const R = 6371000, r = Math.PI / 180, dLa = (b[0] - a[0]) * r, dLo = (b[1] - a[1]) * r;
+    const h = Math.sin(dLa / 2) ** 2 + Math.cos(a[0] * r) * Math.cos(b[0] * r) * Math.sin(dLo / 2) ** 2;
+    return 2 * R * Math.asin(Math.sqrt(h));
+}
 
-// ======================================
-// CLOCK
-// ======================================
+function log(title, sub, cls = '') {
+    const list = $('activityList');
+    list.insertAdjacentHTML('afterbegin', `<div class="activity-item"><span class="activity-marker ${cls}"></span><div><strong>${title}</strong><small>${sub}</small></div></div>`);
+    while (list.children.length > 7) list.lastChild.remove();
+}
 
-function updateClock() {
-    document.getElementById("clock").textContent =
-        new Date().toLocaleString("en-IN", {
-            dateStyle: "medium",
-            timeStyle: "medium"
+// shortest route: Google Directions (alternatives, pick min distance); OSRM as fallback
+function googleRoute(a, b) {
+    return new Promise((res, rej) => new google.maps.DirectionsService().route(
+        { origin: ll(a), destination: ll(b), travelMode: 'DRIVING', provideRouteAlternatives: true },
+        (r, s) => {
+            if (s !== 'OK') return rej(s);
+            const c = r.routes.map(rt => ({
+                d: rt.legs.reduce((t, l) => t + l.distance.value, 0),
+                p: rt.legs.flatMap(l => l.steps.flatMap(st => st.path.map(q => [q.lat(), q.lng()])))
+            })).sort((x, y) => x.d - y.d);
+            res(c[0].p);
+        }));
+}
+async function osrmRoute(a, b) {
+    const j = await (await fetch(`https://router.project-osrm.org/route/v1/driving/${a[1]},${a[0]};${b[1]},${b[0]}?overview=full&geometries=geojson&alternatives=true`)).json();
+    if (j.code !== 'Ok') throw new Error(j.code);
+    return j.routes.sort((x, y) => x.distance - y.distance)[0].geometry.coordinates.map(c => [c[1], c[0]]);
+}
+
+function pointAt(d) {
+    let i = 1; while (i < cum.length - 1 && cum[i] < d) i++;
+    const t = (d - cum[i - 1]) / ((cum[i] - cum[i - 1]) || 1);
+    return [pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t, pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t];
+}
+
+async function loadSignals() {
+    let found = [], real = true;
+    try {
+        const la = pts.map(p => p[0]), ln = pts.map(p => p[1]);
+        const bb = [Math.min(...la), Math.min(...ln), Math.max(...la), Math.max(...ln)].join(',');
+        const q = `[out:json][timeout:15];node["highway"="traffic_signals"](${bb});out;`;
+        const j = await (await fetch('https://overpass-api.de/api/interpreter', { method: 'POST', body: 'data=' + encodeURIComponent(q) })).json();
+        j.elements.forEach(e => {
+            let best = 1e9, bi = 0;
+            pts.forEach((p, i) => { const d = dist(p, [e.lat, e.lon]); if (d < best) { best = d; bi = i; } });
+            if (best < 30) found.push({ pos: cum[bi], ll: [e.lat, e.lon] });
         });
+    } catch (err) { found = []; }
+    found.sort((a, b) => a.pos - b.pos);
+    found = found.filter((s, i) => i === 0 || s.pos - found[i - 1].pos > 40);
+    if (!found.length) { real = false; for (let d = 350; d < total - 100; d += 400) found.push({ pos: d, ll: pointAt(d) }); }
+    signals.forEach(s => s.m.setMap(null));
+    signals = found.map(s => {
+        s.state = Math.random() < 0.65 ? 'red' : 'green'; s.waited = false;
+        s.m = new google.maps.Marker({ position: ll(s.ll), map, icon: sigIcon(s.state), clickable: false }); return s;
+    });
+    $('signalInfo').textContent = `${signals.length} signals on route${real ? '' : ' (simulated)'}`;
 }
 
-updateClock();
-setInterval(updateClock, 1000);
+function setState(s, st) { if (s.state !== st) { s.state = st; s.m.setIcon(sigIcon(st)); } }
 
-// ======================================
-// MAP INITIALIZATION
-// ======================================
+function clearRoute() {
+    if (raf) cancelAnimationFrame(raf);
+    raf = null; running = false;
+    if (line) { line.setMap(null); line = null; }
+    signals.forEach(s => s.m.setMap(null)); signals = [];
+    amb.setPosition(ll(START)); map.setCenter(ll(START)); map.setZoom(14);
+    $('eta').textContent = '08 minutes'; $('incidentStatus').textContent = 'Standby';
+    $('activeCount').textContent = '01'; $('ambulanceCount').textContent = '04';
+    $('signalInfo').textContent = 'Signals: -'; $('startDemo').disabled = false;
+}
 
-function loadMap() {
-    if (GOOGLE_MAPS_API_KEY.trim()) {
-        loadGoogleMaps();
-    } else {
-        initializeLeafletMap();
+async function start() {
+    clearRoute(); $('startDemo').disabled = true; $('incidentStatus').textContent = 'Planning route...';
+    let engine = 'Google Directions';
+    try { pts = await googleRoute(START, HOSPITAL); }
+    catch (e) {
+        try { pts = await osrmRoute(START, HOSPITAL); engine = 'OSRM (Google Directions returned ' + e + ')'; }
+        catch (e2) { $('incidentStatus').textContent = 'Routing failed'; log('Route error', 'Check internet and API key settings'); $('startDemo').disabled = false; return; }
     }
-}
+    cum = [0]; for (let i = 1; i < pts.length; i++) cum[i] = cum[i - 1] + dist(pts[i - 1], pts[i]);
+    total = cum[cum.length - 1];
+    line = new google.maps.Polyline({ path: pts.map(ll), map, strokeColor: '#19d3ff', strokeWeight: 5, strokeOpacity: .95 });
+    const bounds = new google.maps.LatLngBounds(); pts.forEach(p => bounds.extend(ll(p))); map.fitBounds(bounds, 50);
+    await loadSignals();
 
-function loadGoogleMaps() {
-    window.initGoogleMap = function () {
-        useGoogleMaps = true;
+    log('Shortest route found', `${(total / 1000).toFixed(2)} km via ${engine}`, 'green-marker');
+    $('ambulanceCount').textContent = '03'; running = true; $('incidentStatus').textContent = 'En Route';
+    log('Ambulance dispatched', 'AMB-04 heading to hospital');
 
-        map = new google.maps.Map(
-            document.getElementById("map"),
-            {
-                center: hospitalLocation,
-                zoom: 14,
-                mapTypeControl: false,
-                streetViewControl: false,
-                fullscreenControl: true,
-                styles: [
-                    {
-                        elementType: "geometry",
-                        stylers: [{ color: "#182b40" }]
-                    },
-                    {
-                        elementType: "labels.text.fill",
-                        stylers: [{ color: "#d5e2f0" }]
-                    },
-                    {
-                        featureType: "road",
-                        elementType: "geometry",
-                        stylers: [{ color: "#344a61" }]
-                    },
-                    {
-                        featureType: "water",
-                        elementType: "geometry",
-                        stylers: [{ color: "#10263b" }]
-                    }
-                ]
+    const speed = Math.max(total / 40, 18);
+    let d = 0, last = performance.now(), pauseUntil = 0;
+    const frame = now => {
+        if (!running) return;
+        if (now < pauseUntil) { last = now; raf = requestAnimationFrame(frame); return; }
+        d = Math.min(total, d + speed * (now - last) / 1000); last = now;
+        const auto = $('autoSignals').checked;
+        for (const s of signals) {
+            const ahead = s.pos - d;
+            if (auto && ahead < GREEN_RANGE && ahead > -RED_AFTER) {
+                if (s.state === 'red') log('Signal cleared', 'Red changed to green for ambulance', 'blue-marker');
+                setState(s, 'green');
+            } else if (ahead <= -RED_AFTER) setState(s, 'red');
+            if (!auto && s.state === 'red' && ahead < 12 && ahead > -5 && !s.waited) {
+                s.waited = true; pauseUntil = now + 3000; log('Stopped at red signal', 'Auto corridor is off, ambulance delayed 3 s');
             }
-        );
-
-        ambulanceMarker = new google.maps.Marker({
-            position: routePoints[0],
-            map: map,
-            title: "Ambulance AMB-04",
-            label: "A"
-        });
-
-        new google.maps.Marker({
-            position: hospitalLocation,
-            map: map,
-            title: "City Hospital"
-        });
-
-        routeLine = new google.maps.Polyline({
-            path: routePoints,
-            geodesic: true,
-            strokeColor: "#22c5e5",
-            strokeOpacity: 0.9,
-            strokeWeight: 5,
-            map: map
-        });
+        }
+        amb.setPosition(ll(pointAt(d)));
+        $('eta').textContent = Math.max(1, Math.ceil((total - d) / 13.9 / 60)) + ' min';
+        if (d >= total) {
+            running = false; $('eta').textContent = 'Arrived'; $('incidentStatus').textContent = 'Arrived';
+            $('activeCount').textContent = '00'; $('ambulanceCount').textContent = '04'; $('startDemo').disabled = false;
+            log('Ambulance arrived', 'Patient handed over to City Hospital', 'green-marker'); return;
+        }
+        raf = requestAnimationFrame(frame);
     };
-
-    const script = document.createElement("script");
-
-    script.src =
-        "https://maps.googleapis.com/maps/api/js?key=" +
-        encodeURIComponent(GOOGLE_MAPS_API_KEY) +
-        "&callback=initGoogleMap";
-
-    script.async = true;
-    script.defer = true;
-
-    script.onerror = function () {
-        initializeLeafletMap();
-    };
-
-    document.head.appendChild(script);
+    raf = requestAnimationFrame(frame);
 }
 
-// ======================================
-// FREE OPENSTREETMAP FALLBACK
-// ======================================
-
-function initializeLeafletMap() {
-    if (map) return;
-
-    useGoogleMaps = false;
-
-    map = L.map("map").setView(
-        [hospitalLocation.lat, hospitalLocation.lng],
-        14
-    );
-
-    L.tileLayer(
-        "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
-        {
-            attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>',
-            maxZoom: 19
-        }
-    ).addTo(map);
-
-    ambulanceMarker = L.circleMarker(
-        [routePoints[0].lat, routePoints[0].lng],
-        {
-            radius: 10,
-            color: "#ffffff",
-            weight: 2,
-            fillColor: "#ff6278",
-            fillOpacity: 1
-        }
-    ).addTo(map).bindPopup("Ambulance AMB-04");
-
-    L.circleMarker(
-        [hospitalLocation.lat, hospitalLocation.lng],
-        {
-            radius: 9,
-            color: "#ffffff",
-            weight: 2,
-            fillColor: "#4d9dff",
-            fillOpacity: 1
-        }
-    ).addTo(map).bindPopup("City Hospital");
-
-    routeLine = L.polyline(
-        routePoints.map(point => [point.lat, point.lng]),
-        {
-            color: "#22c5e5",
-            weight: 5,
-            dashArray: "10, 8"
-        }
-    ).addTo(map);
-}
-
-// ======================================
-// MOVE AMBULANCE
-// ======================================
-
-function moveAmbulance() {
-    if (ambulancePosition >= routePoints.length - 1) {
-        clearInterval(simulationTimer);
-        simulationTimer = null;
-
-        document.getElementById("incidentStatus").textContent =
-            "Arrived";
-
-        document.getElementById("eta").textContent = "Arrived";
-
-        addActivity(
-            "Ambulance reached hospital",
-            "Demo journey completed successfully",
-            "green-marker"
-        );
-
-        return;
-    }
-
-    ambulancePosition++;
-
-    const point = routePoints[ambulancePosition];
-
-    if (useGoogleMaps) {
-        ambulanceMarker.setPosition(point);
-    } else {
-        ambulanceMarker.setLatLng([point.lat, point.lng]);
-        map.panTo([point.lat, point.lng]);
-    }
-
-    const remaining = routePoints.length - 1 - ambulancePosition;
-
-    document.getElementById("eta").textContent =
-        remaining * 2 + " minutes";
-
-    document.getElementById("incidentStatus").textContent =
-        "En Route";
-
-    updatePatientReadings();
-}
-
-// ======================================
-// START EMERGENCY
-// ======================================
-
-async function startEmergency() {
-    if (simulationTimer) return;
-
-    if (ambulancePosition >= routePoints.length - 1) {
-        resetSimulation();
-    }
-
-    incidentActive = true;
-
-    document.getElementById("incidentStatus").textContent =
-        "En Route";
-
-    document.getElementById("activeCount").textContent = "01";
-
-    addActivity(
-        "Emergency simulation started",
-        "Ambulance AMB-04 is following the demo route",
-        "blue-marker"
-    );
-
-    try {
-        const response = await fetch(API_BASE + "/api/emergency", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                ambulance_id: "AMB-04",
-                destination: "City Hospital"
-            })
-        });
-
-        if (response.ok) {
-            const data = await response.json();
-
-            addActivity(
-                "Backend connected",
-                "Incident " + data.incident_id + " registered",
-                "green-marker"
-            );
-        }
-    } catch (error) {
-        addActivity(
-            "Frontend simulation active",
-            "Start the Python backend for API connectivity",
-            "blue-marker"
-        );
-    }
-
-    simulationTimer = setInterval(moveAmbulance, 2500);
-}
-
-// ======================================
-// RESET SIMULATION
-// ======================================
-
-function resetSimulation() {
-    clearInterval(simulationTimer);
-    simulationTimer = null;
-
-    ambulancePosition = 0;
-    incidentActive = false;
-
-    const firstPoint = routePoints[0];
-
-    if (ambulanceMarker) {
-        if (useGoogleMaps) {
-            ambulanceMarker.setPosition(firstPoint);
-            map.setCenter(hospitalLocation);
-        } else {
-            ambulanceMarker.setLatLng([
-                firstPoint.lat,
-                firstPoint.lng
-            ]);
-
-            map.setView(
-                [hospitalLocation.lat, hospitalLocation.lng],
-                14
-            );
-        }
-    }
-
-    document.getElementById("eta").textContent = "08 minutes";
-    document.getElementById("incidentStatus").textContent = "En Route";
-    document.getElementById("activeCount").textContent = "01";
-
-    addActivity(
-        "Simulation reset",
-        "Ambulance returned to its starting point",
-        "green-marker"
-    );
-}
-
-// ======================================
-// PATIENT DATA SIMULATION
-// ======================================
-
-function updatePatientReadings() {
-    const heartRate = Math.floor(78 + Math.random() * 12);
-    const oxygen = Math.floor(96 + Math.random() * 4);
-
-    document.getElementById("heartRate").innerHTML =
-        heartRate + " <small>BPM</small>";
-
-    document.getElementById("spo2").innerHTML =
-        oxygen + " <small>%</small>";
-}
-
-// ======================================
-// ACTIVITY LOG
-// ======================================
-
-function addActivity(title, description, markerClass) {
-    const list = document.getElementById("activityList");
-
-    const item = document.createElement("div");
-    item.className = "activity-item";
-
-    const marker = document.createElement("span");
-    marker.className = "activity-marker " + markerClass;
-
-    const content = document.createElement("div");
-
-    const heading = document.createElement("strong");
-    heading.textContent = title;
-
-    const details = document.createElement("small");
-    details.textContent = description;
-
-    content.appendChild(heading);
-    content.appendChild(details);
-
-    item.appendChild(marker);
-    item.appendChild(content);
-
-    list.prepend(item);
-
-    while (list.children.length > 5) {
-        list.removeChild(list.lastElementChild);
-    }
-}
-
-// ======================================
-// BUTTON EVENTS
-// ======================================
-
-document.getElementById("startDemo")
-    .addEventListener("click", startEmergency);
-
-document.getElementById("resetDemo")
-    .addEventListener("click", resetSimulation);
-
-// ======================================
-// BACKEND DASHBOARD CONNECTION
-// ======================================
-
-async function loadDashboardData() {
-    try {
-        const response = await fetch(API_BASE + "/api/dashboard");
-
-        if (!response.ok) {
-            throw new Error("Backend unavailable");
-        }
-
-        const data = await response.json();
-
-        document.getElementById("ambulanceCount").textContent =
-            data.available_ambulances;
-
-    } catch (error) {
-        console.log("Using demonstration dashboard data.");
-    }
-}
-
-// ======================================
-// START APPLICATION
-// ======================================
-
-loadMap();
-loadDashboardData();
-
+window.initMap = function () {
+    map = new google.maps.Map($('map'), { center: ll(START), zoom: 14, styles: DARK, disableDefaultUI: true, zoomControl: true, gestureHandling: 'greedy' });
+    amb  = new google.maps.Marker({ position: ll(START), map, icon: dot('#ff4d6a', 9), zIndex: 1000 });
+    hosp = new google.maps.Marker({ position: ll(HOSPITAL), map, icon: dot('#4d9dff', 9) });
+    map.addListener('click', e => {
+        if (running) return;
+        HOSPITAL = [e.latLng.lat(), e.latLng.lng()]; hosp.setPosition(e.latLng); clearRoute();
+        log('Hospital moved', 'Click Start to plan a new shortest route');
+    });
+    $('startDemo').addEventListener('click', start);
+    $('resetDemo').addEventListener('click', clearRoute);
+};
+
+// clock + simulated vitals
+setInterval(() => { $('clock').textContent = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }); }, 1000);
+setInterval(() => {
+    const hr = (running ? 96 : 78) + Math.round(Math.random() * 10), sp = 97 + Math.round(Math.random() * 2);
+    $('heartRate').innerHTML = `${hr} <small>BPM</small>`; $('spo2').innerHTML = `${sp} <small>%</small>`;
+}, 1500);
