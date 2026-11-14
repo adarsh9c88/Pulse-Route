@@ -141,7 +141,7 @@ async function start() {
         if (d >= total) {
             running = false; $('eta').textContent = 'Arrived'; $('incidentStatus').textContent = 'Arrived';
             $('activeCount').textContent = '00'; $('ambulanceCount').textContent = '04'; $('startDemo').disabled = false;
-            log('Ambulance arrived', 'Patient handed over to City Hospital', 'green-marker'); return;
+            log('Ambulance arrived', 'Patient handed over to ' + window.destName, 'green-marker'); return;
         }
         raf = requestAnimationFrame(frame);
     };
@@ -155,15 +155,13 @@ window.initMap = function () {
     map.addListener('click', e => {
         if (running) return;
         HOSPITAL = [e.latLng.lat(), e.latLng.lng()]; hosp.setPosition(e.latLng); clearRoute();
+        window.destName = 'Custom location'; $('destName').textContent = 'Custom location'; document.dispatchEvent(new Event('pr:destchange'));
         log('Hospital moved', 'Click Start to plan a new shortest route');
     });
     $('startDemo').addEventListener('click', start);
     $('resetDemo').addEventListener('click', clearRoute);
+    if (window.afterMapInit) afterMapInit();
 };
 
 // clock + simulated vitals
 setInterval(() => { $('clock').textContent = new Date().toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit', second: '2-digit' }); }, 1000);
-setInterval(() => {
-    const hr = (running ? 96 : 78) + Math.round(Math.random() * 10), sp = 97 + Math.round(Math.random() * 2);
-    $('heartRate').innerHTML = `${hr} <small>BPM</small>`; $('spo2').innerHTML = `${sp} <small>%</small>`;
-}, 1500);
