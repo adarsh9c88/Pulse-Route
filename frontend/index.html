@@ -1,1 +1,301 @@
 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PulseRoute | Emergency Command Center</title>
+
+    <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet"
+          href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+</head>
+
+<body>
+
+<div class="app">
+
+    <aside class="sidebar">
+        <div class="brand">
+            <div class="brand-icon">✚</div>
+            <div>
+                <h2>PulseRoute</h2>
+                <span>EMERGENCY NETWORK</span>
+            </div>
+        </div>
+
+        <div class="nav-label">MAIN MENU</div>
+
+        <a class="nav-item active" href="#dashboard">▦ Dashboard</a>
+        <a class="nav-item" href="#tracking">⌖ Live Tracking</a>
+        <a class="nav-item" href="#patient">♡ Patient Monitor</a>
+        <a class="nav-item" href="#hospital">✚ Hospital Status</a>
+
+        <div class="sidebar-bottom">
+            <div class="system-status">
+                <span class="live-dot"></span>
+                <div>
+                    <strong>System Online</strong>
+                    <small>Demo environment</small>
+                </div>
+            </div>
+            <div class="profile">
+                <div class="avatar">PR</div>
+                <div>
+                    <strong>Command Center</strong>
+                    <small>Administrator</small>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <main class="main-content" id="dashboard">
+
+        <header class="topbar">
+            <div>
+                <p class="eyebrow">EMERGENCY RESPONSE PLATFORM</p>
+                <h1>Command Dashboard</h1>
+                <p class="subheading">Monitor emergencies and coordinate response operations.</p>
+            </div>
+
+            <div class="top-actions">
+                <span class="live-label">
+                    <span class="live-dot"></span> LIVE SIMULATION
+                </span>
+                <div class="date-box" id="clock">Loading...</div>
+            </div>
+        </header>
+
+        <section class="stats-grid">
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Active Emergencies</span>
+                    <span class="stat-icon red">!</span>
+                </div>
+                <h2 id="activeCount">01</h2>
+                <p>Currently monitored</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Available Ambulances</span>
+                    <span class="stat-icon blue">✚</span>
+                </div>
+                <h2 id="ambulanceCount">04</h2>
+                <p>Fleet availability (demo)</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Average Response</span>
+                    <span class="stat-icon green">◷</span>
+                </div>
+                <h2>08 min</h2>
+                <p>Illustrative demo value</p>
+            </div>
+
+            <div class="stat-card">
+                <div class="stat-top">
+                    <span>Hospitals Online</span>
+                    <span class="stat-icon purple">✚</span>
+                </div>
+                <h2>06</h2>
+                <p>Connected demo facilities</p>
+            </div>
+
+        </section>
+
+        <section class="content-grid">
+
+            <div class="panel map-panel" id="tracking">
+
+                <div class="panel-heading">
+                    <div>
+                        <h3>Live Emergency Tracking</h3>
+                        <p>Ambulance location and proposed route</p>
+                    </div>
+                    <span class="map-status">● MAP ACTIVE</span>
+                </div>
+
+                <div id="map"></div>
+
+                <div class="map-legend">
+                    <span><i class="legend-dot red-dot"></i> Ambulance</span>
+                    <span><i class="legend-dot blue-dot"></i> Hospital</span>
+                    <span><i class="legend-line"></i> Demo route</span>
+                </div>
+
+                <div class="map-buttons">
+                    <button class="primary-btn" id="startDemo">
+                        ▶ Start Emergency Demo
+                    </button>
+                    <button class="secondary-btn" id="resetDemo">
+                        ↻ Reset
+                    </button>
+                </div>
+
+            </div>
+
+            <div class="right-column">
+
+                <div class="panel emergency-panel">
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Emergency Details</h3>
+                            <p>Current simulated incident</p>
+                        </div>
+                        <span class="priority">HIGH PRIORITY</span>
+                    </div>
+
+                    <div class="incident-id">INCIDENT #PR-001</div>
+
+                    <div class="detail-row">
+                        <span>Ambulance ID</span>
+                        <strong>AMB-04</strong>
+                    </div>
+
+                    <div class="detail-row">
+                        <span>Destination</span>
+                        <strong>City Hospital</strong>
+                    </div>
+
+                    <div class="detail-row">
+                        <span>Estimated Arrival</span>
+                        <strong id="eta">08 minutes</strong>
+                    </div>
+
+                    <div class="detail-row">
+                        <span>Incident Status</span>
+                        <strong class="status-text" id="incidentStatus">En Route</strong>
+                    </div>
+
+                </div>
+
+                <div class="panel patient-panel" id="patient">
+
+                    <div class="panel-heading">
+                        <div>
+                            <h3>Patient Monitoring</h3>
+                            <p>Simulated patient telemetry</p>
+                        </div>
+                        <span class="monitor-live">● LIVE</span>
+                    </div>
+
+                    <div class="patient-metrics">
+
+                        <div class="metric">
+                            <span>Heart Rate</span>
+                            <h2 id="heartRate">82 <small>BPM</small></h2>
+                            <p>Simulated reading</p>
+                        </div>
+
+                        <div class="metric">
+                            <span>Blood Oxygen</span>
+                            <h2 id="spo2">98 <small>%</small></h2>
+                            <p>Simulated reading</p>
+                        </div>
+
+                    </div>
+
+                    <div class="patient-note">
+                        Patient information is simulated for demonstration.
+                    </div>
+
+                </div>
+
+            </div>
+
+        </section>
+
+        <section class="bottom-grid">
+
+            <div class="panel" id="hospital">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Hospital Coordination</h3>
+                        <p>Connected demonstration facilities</p>
+                    </div>
+                    <span class="map-status">06 CONNECTED</span>
+                </div>
+
+                <div class="hospital-row">
+                    <div class="hospital-icon">✚</div>
+                    <div class="hospital-info">
+                        <strong>City Hospital</strong>
+                        <small>Emergency department</small>
+                    </div>
+                    <span class="available">Available</span>
+                </div>
+
+                <div class="hospital-row">
+                    <div class="hospital-icon">✚</div>
+                    <div class="hospital-info">
+                        <strong>Central Medical Centre</strong>
+                        <small>Emergency department</small>
+                    </div>
+                    <span class="available">Available</span>
+                </div>
+
+                <div class="hospital-row">
+                    <div class="hospital-icon">✚</div>
+                    <div class="hospital-info">
+                        <strong>Metro Care Hospital</strong>
+                        <small>Emergency department</small>
+                    </div>
+                    <span class="available">Available</span>
+                </div>
+            </div>
+
+            <div class="panel activity-panel">
+                <div class="panel-heading">
+                    <div>
+                        <h3>Response Activity</h3>
+                        <p>Recent system events</p>
+                    </div>
+                </div>
+
+                <div id="activityList">
+                    <div class="activity-item">
+                        <span class="activity-marker"></span>
+                        <div>
+                            <strong>Ambulance dispatched</strong>
+                            <small>AMB-04 assigned to incident PR-001</small>
+                        </div>
+                    </div>
+
+                    <div class="activity-item">
+                        <span class="activity-marker blue-marker"></span>
+                        <div>
+                            <strong>Hospital notified</strong>
+                            <small>City Hospital received an alert</small>
+                        </div>
+                    </div>
+
+                    <div class="activity-item">
+                        <span class="activity-marker green-marker"></span>
+                        <div>
+                            <strong>Route calculated</strong>
+                            <small>Demo corridor generated successfully</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </section>
+
+        <footer>
+            <span>PulseRoute © 2026</span>
+            <span>AI-Powered Emergency Response Corridor</span>
+            <span>Academic Demonstration Project</span>
+        </footer>
+
+    </main>
+</div>
+
+<script src="script.js"></script>
+</body>
+</html>
+
